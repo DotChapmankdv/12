@@ -543,7 +543,21 @@ class SimpleClickerWorking:
             if success:
                 self.status_var.set(f"{action_name}测试完成: 右击测试成功")
             else:
+                # 追加诊断信息，便于定位是哪一步失败
+                diagnose_results = EnhancedRightClickMethods.diagnose_right_click_methods(center_x, center_y)
+
+                detail_lines = []
+                for item in diagnose_results:
+                    status_flag = "✅" if item["success"] else "❌"
+                    msg = f"{status_flag} 方法{item['index']}: {item['name']}"
+                    if item.get("error"):
+                        msg += f" (异常: {item['error']})"
+                    detail_lines.append(msg)
+
+                detail_message = "\n".join(detail_lines) if detail_lines else "未获取到诊断信息"
+
                 self.status_var.set(f"{action_name}测试完成: 右击测试已执行（请手动验证）")
+                messagebox.showinfo("右键诊断结果", f"右键诊断详情:\n{detail_message}")
         elif action_name == "动作12":
             self.status_var.set(f"测试{action_name}: 键盘粘贴")
             # 测试键盘粘贴功能
@@ -2039,6 +2053,21 @@ class EnhancedRightClickMethods:
     """增强的右键点击方法集合"""
 
     @staticmethod
+    def _get_method_entries():
+        """统一管理右键方法列表，便于诊断和日志展示"""
+        return [
+            ("增强时序控制", EnhancedRightClickMethods._method_enhanced_timing),
+            ("Windows API", EnhancedRightClickMethods._method_windows_api),
+            ("SendInput绝对坐标", EnhancedRightClickMethods._method_send_input_absolute),
+            ("键盘模拟右键菜单", EnhancedRightClickMethods._method_keyboard_context_menu),
+            ("管理员权限API", EnhancedRightClickMethods._method_admin_privilege_api),
+            ("手动分步右键", EnhancedRightClickMethods._method_manual_right_click),
+            ("click右键", EnhancedRightClickMethods._method_click_button_right),
+            ("pyautogui.rightClick", EnhancedRightClickMethods._method_pyautogui_right_click),
+            ("重延迟备选", EnhancedRightClickMethods._method_fallback_heavy_delay),
+        ]
+
+    @staticmethod
     def execute_enhanced_right_click(x, y, status_callback=None):
         """执行增强的右键点击（多种方法fallback）"""
         try:
@@ -2050,21 +2079,12 @@ class EnhancedRightClickMethods:
             time.sleep(0.2)
 
             # 尝试多种方法（针对特定软件优化）
-            methods = [
-                EnhancedRightClickMethods._method_enhanced_timing,
-                EnhancedRightClickMethods._method_windows_api,
-                EnhancedRightClickMethods._method_keyboard_context_menu,  # 新增：键盘模拟右键菜单
-                EnhancedRightClickMethods._method_admin_privilege_api,   # 新增：管理员权限API
-                EnhancedRightClickMethods._method_manual_right_click,
-                EnhancedRightClickMethods._method_click_button_right,
-                EnhancedRightClickMethods._method_pyautogui_right_click,
-                EnhancedRightClickMethods._method_fallback_heavy_delay,   # 新增：重延迟备选
-            ]
+            methods = EnhancedRightClickMethods._get_method_entries()
 
-            for method_index, method in enumerate(methods):
+            for method_index, (method_name, method) in enumerate(methods):
                 try:
                     if status_callback:
-                        status_callback(f"尝试右键方法{method_index+1}")
+                        status_callback(f"尝试右键方法{method_index+1}: {method_name}")
 
                     # 重新移动到目标位置（某些方法可能会移动鼠标）
                     pyautogui.moveTo(x, y, duration=0.1)
@@ -2073,17 +2093,17 @@ class EnhancedRightClickMethods:
                     result = method()
                     if result:
                         if status_callback:
-                            status_callback(f"右键成功(方法{method_index+1})")
+                            status_callback(f"右键成功(方法{method_index+1}: {method_name})")
                         return True
                     else:
                         if status_callback:
-                            status_callback(f"右键方法{method_index+1}失败，尝试下一个...")
+                            status_callback(f"右键方法{method_index+1}失败，尝试下一个... ({method_name})")
                         time.sleep(0.5)
 
                 except Exception as e:
                     print(f"右键方法{method_index+1}异常: {e}")
                     if status_callback:
-                        status_callback(f"右键方法{method_index+1}异常")
+                        status_callback(f"右键方法{method_index+1}异常 ({method_name})")
                     time.sleep(0.5)
 
             if status_callback:
@@ -2139,7 +2159,7 @@ class EnhancedRightClickMethods:
 
     @staticmethod
     def _method_manual_right_click():
-        """方法3：手动分步按下释放"""
+        """方法6：手动分步按下释放"""
         try:
             pyautogui.mouseDown(button='right')
             time.sleep(0.1)
@@ -2150,7 +2170,7 @@ class EnhancedRightClickMethods:
 
     @staticmethod
     def _method_click_button_right():
-        """方法4：使用button参数"""
+        """方法7：使用button参数"""
         try:
             pyautogui.click(button='right')
             return True
@@ -2159,7 +2179,7 @@ class EnhancedRightClickMethods:
 
     @staticmethod
     def _method_pyautogui_right_click():
-        """方法6：标准pyautogui右键"""
+        """方法8：标准pyautogui右键"""
         try:
             pyautogui.rightClick()
             return True
@@ -2168,7 +2188,7 @@ class EnhancedRightClickMethods:
 
     @staticmethod
     def _method_keyboard_context_menu():
-        """方法3：键盘模拟右键菜单（适用于拦截鼠标的软件）"""
+        """方法4：键盘模拟右键菜单（适用于拦截鼠标的软件）"""
         try:
             # 先确保焦点在目标位置
             pyautogui.click()  # 左键点击获得焦点
@@ -2191,8 +2211,60 @@ class EnhancedRightClickMethods:
             return False
 
     @staticmethod
+    def _method_send_input_absolute():
+        """方法3：使用SendInput发送绝对坐标右键（兼容全屏/游戏类窗口）"""
+        try:
+            user32 = ctypes.windll.user32
+
+            # 获取屏幕尺寸，转换为SendInput绝对坐标（0-65535）
+            screen_width = user32.GetSystemMetrics(0) - 1
+            screen_height = user32.GetSystemMetrics(1) - 1
+            x, y = pyautogui.position()
+            abs_x = int(x * 65535 / screen_width)
+            abs_y = int(y * 65535 / screen_height)
+
+            # 定义必要结构体
+            class MOUSEINPUT(ctypes.Structure):
+                _fields_ = [
+                    ("dx", ctypes.c_long),
+                    ("dy", ctypes.c_long),
+                    ("mouseData", ctypes.c_ulong),
+                    ("dwFlags", ctypes.c_ulong),
+                    ("time", ctypes.c_ulong),
+                    ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+                ]
+
+            class INPUT(ctypes.Structure):
+                _fields_ = [
+                    ("type", ctypes.c_ulong),
+                    ("mi", MOUSEINPUT),
+                ]
+
+            MOUSEEVENTF_MOVE = 0x0001
+            MOUSEEVENTF_ABSOLUTE = 0x8000
+            MOUSEEVENTF_RIGHTDOWN = 0x0008
+            MOUSEEVENTF_RIGHTUP = 0x0010
+
+            # 移动到绝对位置后发送右键按下/抬起
+            inputs = (INPUT * 3)()
+            inputs[0].type = 0
+            inputs[0].mi = MOUSEINPUT(abs_x, abs_y, 0, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, 0, None)
+
+            inputs[1].type = 0
+            inputs[1].mi = MOUSEINPUT(abs_x, abs_y, 0, MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_ABSOLUTE, 0, None)
+
+            inputs[2].type = 0
+            inputs[2].mi = MOUSEINPUT(abs_x, abs_y, 0, MOUSEEVENTF_RIGHTUP | MOUSEEVENTF_ABSOLUTE, 0, None)
+
+            sent = user32.SendInput(3, ctypes.byref(inputs), ctypes.sizeof(INPUT))
+            return sent == 3
+        except Exception as e:
+            print(f"SendInput 绝对坐标右键失败: {e}")
+            return False
+
+    @staticmethod
     def _method_admin_privilege_api():
-        """方法4：管理员权限Windows API（增强权限级别）"""
+        """方法5：管理员权限Windows API（增强权限级别）"""
         try:
             import ctypes
             from ctypes import wintypes
@@ -2241,7 +2313,7 @@ class EnhancedRightClickMethods:
 
     @staticmethod
     def _method_fallback_heavy_delay():
-        """方法8：重延迟备选方案（适用于反应慢的软件）"""
+        """方法9：重延迟备选方案（适用于反应慢的软件）"""
         try:
             # 确保焦点
             pyautogui.click()
@@ -2264,6 +2336,34 @@ class EnhancedRightClickMethods:
             return True
         except:
             return False
+
+    @staticmethod
+    def diagnose_right_click_methods(x, y):
+        """逐个执行所有右键方法并返回诊断结果，方便定位问题"""
+        results = []
+        methods = EnhancedRightClickMethods._get_method_entries()
+
+        for method_index, (method_name, method) in enumerate(methods):
+            try:
+                # 确保每次诊断都回到目标位置
+                pyautogui.moveTo(x, y, duration=0.1)
+                time.sleep(0.1)
+
+                success = bool(method())
+                results.append({
+                    "index": method_index + 1,
+                    "name": method_name,
+                    "success": success,
+                    "error": None
+                })
+            except Exception as e:
+                results.append({
+                    "index": method_index + 1,
+                    "name": method_name,
+                    "success": False,
+                    "error": str(e)
+                })
+        return results
 
 if __name__ == "__main__":
     try:
